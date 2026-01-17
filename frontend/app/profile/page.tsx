@@ -105,7 +105,7 @@ function DreamCard({ dream }: { dream: DreamHistoryItem }) {
 
 export default function ProfilePage() {
     const router = useRouter();
-    const { user, isLoading: authLoading, signOut, getToken } = useAuth();
+    const { user, session, isLoading: authLoading, signOut, getToken } = useAuth();
 
     const [activeTab, setActiveTab] = useState<"history" | "settings">("history");
     const [dreams, setDreams] = useState<DreamHistoryItem[]>([]);
@@ -151,13 +151,21 @@ export default function ProfilePage() {
     // Fetch dream history
     useEffect(() => {
         async function fetchHistory() {
-            if (!user) return;
+            if (!user || !session) return;
 
             setIsLoadingHistory(true);
             setHistoryError(null);
 
             try {
-                const token = await getToken();
+                let token = await getToken();
+
+                // Retry once after 500ms if token is null (race condition fix)
+                if (!token) {
+                    console.log("Token null, retrying in 500ms...");
+                    await new Promise(r => setTimeout(r, 500));
+                    token = await getToken();
+                }
+
                 if (!token) {
                     setHistoryError("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
                     return;
@@ -190,7 +198,7 @@ export default function ProfilePage() {
         if (activeTab === "history") {
             fetchHistory();
         }
-    }, [user, activeTab, getToken]);
+    }, [user, session, activeTab, getToken]);
 
     // Handle profile save
     const handleSaveProfile = async () => {

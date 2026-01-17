@@ -118,11 +118,40 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
     };
 
-    // Get access token for API calls
+    // Get access token for API calls (with auto-refresh)
     const getToken = async (): Promise<string | null> => {
         try {
-            const { data } = await supabase.auth.getSession();
-            return data.session?.access_token ?? null;
+            // 1. Get current session
+            const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+
+            if (error) {
+                console.error("Error getting session:", error);
+                return null;
+            }
+
+            if (!currentSession) {
+                console.log("No active session found");
+                return null;
+            }
+
+            // 2. Check if token is expiring soon (< 60 seconds)
+            const expiresAt = currentSession.expires_at;
+            const now = Math.floor(Date.now() / 1000);
+
+            if (expiresAt && expiresAt - now < 60) {
+                console.log("Token expiring soon, refreshing...");
+                const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+
+                if (refreshError || !refreshData.session) {
+                    console.error("Failed to refresh session:", refreshError);
+                    return null;
+                }
+
+                console.log("Token refreshed successfully");
+                return refreshData.session.access_token;
+            }
+
+            return currentSession.access_token;
         } catch (error) {
             console.error("Error getting token:", error);
             return null;
