@@ -62,7 +62,12 @@ async def verify_user_token(token: str) -> Optional[str]:
     
     if client is None:
         print("⚠️ Cannot verify token: Supabase not configured")
+        print(f"   SUPABASE_URL set: {bool(settings.supabase_url)}")
+        print(f"   SUPABASE_KEY set: {bool(settings.supabase_key)}")
         return None
+    
+    # Debug: Log token length (not the token itself for security)
+    print(f"🔍 Verifying token (length: {len(token)}, starts with: {token[:20]}...)")
     
     try:
         # Use Supabase Auth to validate the token
@@ -74,11 +79,12 @@ async def verify_user_token(token: str) -> Optional[str]:
             return user_id
         else:
             print("✗ Token verification failed: No user returned")
+            print(f"   Response: {response}")
             return None
             
     except Exception as e:
         # Token invalid, expired, or other auth error
-        print(f"✗ Token verification error: {e}")
+        print(f"✗ Token verification error: {type(e).__name__}: {e}")
         return None
 
 
