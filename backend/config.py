@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     # Supabase Configuration (for Auth & Database)
     supabase_url: str = ""
     supabase_key: str = ""  # anon/public key for client-side auth
+    supabase_jwt_secret: str = ""  # JWT secret for local token verification
     
     # API Security (Static API Key for Client Verification)
     api_secret_key: str = ""  # Required for all requests - blocks unauthorized clients

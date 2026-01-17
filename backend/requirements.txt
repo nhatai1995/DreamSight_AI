@@ -27,3 +27,6 @@ cachetools>=5.3.0
 
 # Supabase (Auth & Database)
 supabase>=2.0.0
+
+# JWT Verification
+PyJWT>=2.8.0

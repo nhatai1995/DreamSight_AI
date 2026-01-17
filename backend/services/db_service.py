@@ -51,6 +51,8 @@ def get_supabase_client() -> Optional[Client]:
 async def verify_user_token(token: str) -> Optional[str]:
     """
     Verify a JWT token from the frontend and return the user_id.
+    Uses local JWT verification (faster) if JWT secret is configured,
+    otherwise falls back to Supabase API call.
     
     Args:
         token: The JWT token from Authorization header (without 'Bearer ')
@@ -58,33 +60,65 @@ async def verify_user_token(token: str) -> Optional[str]:
     Returns:
         The user_id (UUID string) if valid, None otherwise
     """
-    client = get_supabase_client()
-    
-    if client is None:
-        print("⚠️ Cannot verify token: Supabase not configured")
-        print(f"   SUPABASE_URL set: {bool(settings.supabase_url)}")
-        print(f"   SUPABASE_KEY set: {bool(settings.supabase_key)}")
-        return None
-    
     # Debug: Log token length (not the token itself for security)
     print(f"🔍 Verifying token (length: {len(token)}, starts with: {token[:20]}...)")
     
+    # Method 1: Local JWT verification (preferred - faster, no network call)
+    if settings.supabase_jwt_secret:
+        try:
+            import jwt
+            
+            # Decode and verify the JWT using the Supabase JWT secret
+            payload = jwt.decode(
+                token,
+                settings.supabase_jwt_secret,
+                algorithms=["HS256"],
+                audience="authenticated",  # Supabase uses this audience
+                options={"require": ["sub", "exp"]}
+            )
+            
+            user_id = payload.get("sub")  # 'sub' contains the user UUID
+            if user_id:
+                print(f"✓ Token verified locally for user: {user_id[:8]}...")
+                return user_id
+            else:
+                print("✗ Token missing 'sub' claim")
+                return None
+                
+        except jwt.ExpiredSignatureError:
+            print("✗ Token has expired")
+            return None
+        except jwt.InvalidAudienceError:
+            print("✗ Token has invalid audience")
+            return None
+        except jwt.InvalidTokenError as e:
+            print(f"✗ Invalid token: {e}")
+            return None
+        except Exception as e:
+            print(f"✗ JWT verification error: {type(e).__name__}: {e}")
+            return None
+    
+    # Method 2: Fallback to Supabase API (slower, but works without JWT secret)
+    print("⚠️ JWT secret not configured, falling back to Supabase API...")
+    
+    client = get_supabase_client()
+    if client is None:
+        print("⚠️ Cannot verify token: Supabase not configured")
+        return None
+    
     try:
-        # Use Supabase Auth to validate the token
         response = client.auth.get_user(token)
         
         if response and response.user:
             user_id = str(response.user.id)
-            print(f"✓ Token verified for user: {user_id[:8]}...")
+            print(f"✓ Token verified via Supabase API for user: {user_id[:8]}...")
             return user_id
         else:
             print("✗ Token verification failed: No user returned")
-            print(f"   Response: {response}")
             return None
             
     except Exception as e:
-        # Token invalid, expired, or other auth error
-        print(f"✗ Token verification error: {type(e).__name__}: {e}")
+        print(f"✗ Supabase API verification error: {type(e).__name__}: {e}")
         return None
 
 
